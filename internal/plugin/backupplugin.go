@@ -18,12 +18,16 @@ package plugin
 
 import (
 	"github.com/sirupsen/logrus"
-
-	"k8s.io/apimachinery/pkg/api/meta"
+	"encoding/json"
+	"strings"
+    //#"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	appsv1API "k8s.io/api/apps/v1"
 
 	v1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
+//		"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 )
 
 // BackupPlugin is a backup item action plugin for Velero.
@@ -42,7 +46,11 @@ func NewBackupPlugin(log logrus.FieldLogger) *BackupPlugin {
 // A BackupPlugin's Execute function will only be invoked on items that match the returned
 // selector. A zero-valued ResourceSelector matches all resources.
 func (p *BackupPlugin) AppliesTo() (velero.ResourceSelector, error) {
-	return velero.ResourceSelector{}, nil
+	return velero.ResourceSelector{
+				IncludedResources: []string{"deployments"},
+					
+	}, nil
+	
 }
 
 // Execute allows the ItemAction to perform arbitrary logic with the item being backed up,
@@ -50,19 +58,44 @@ func (p *BackupPlugin) AppliesTo() (velero.ResourceSelector, error) {
 func (p *BackupPlugin) Execute(item runtime.Unstructured, backup *v1.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
 	p.log.Info("Hello from my BackupPlugin(v1)!")
 
-	metadata, err := meta.Accessor(item)
-	if err != nil {
-		return nil, nil, err
-	}
 
-	annotations := metadata.GetAnnotations()
+	deployment := appsv1API.Deployment{}
+	itemMarshal, _ := json.Marshal(item)
+	json.Unmarshal(itemMarshal, &deployment)
+	p.log.Infof("[peter] deployment: %s", deployment.Name)
+
+
+	annotations := deployment.GetAnnotations()
+	p.log.Infof("[peter] deployment annotations: %s", annotations)
+
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
 
-	annotations["velero.io/my-backup-plugin"] = "1"
+	/// find parcel in annotations
+	if t, found := annotations["dce.daocloud.io/parcel.net.type"]; found {
+		if t == "ovs" {
+			if parcelValue, found := annotations["dce.daocloud.io/parcel.net.value"]; found {
+				p.log.Infof("[peter] parcel: %s", parcelValue)
+				kv := strings.Split(parcelValue, ":")
+				if len(kv) == 2{
+					annotations["v1.multus-cni.io/default-network"] = "kube-system/macvlan-standalone"
+					annotations["ipam.spidernet.io/ippools"] = "[{\"interface\":\"eth0\", \"ipv4\":[\"" + kv[1]  + "\"]}]"
+				}
+			}
+		}
+	}
 
-	metadata.SetAnnotations(annotations)
 
-	return item, nil, nil
+	//metadata.SetAnnotations(annotations)
+	deployment.SetAnnotations(annotations)
+	p.log.Infof("[peter] after SetAnnotations = : %s", deployment.GetAnnotations())
+
+
+	var out map[string]interface{}
+	objrec, _ := json.Marshal(deployment)
+	json.Unmarshal(objrec, &out)
+	item.SetUnstructuredContent(out)
+	return item, nil, nil 
+
 }
