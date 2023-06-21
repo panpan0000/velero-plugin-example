@@ -15,8 +15,8 @@
 PKG := github.com/vmware-tanzu/velero-plugin-example
 BIN := velero-plugin-example
 
-REGISTRY ?= daocloud.io
-IMAGE    ?= $(REGISTRY)/velero-plugin-daocloud
+REGISTRY ?= release-ci.daocloud.io
+IMAGE    ?= $(REGISTRY)/peter/velero-plugin-daocloud
 VERSION  ?= latest
 
 GOOS   ?= $(shell go env GOOS)
