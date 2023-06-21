@@ -56,7 +56,6 @@ func (p *BackupPlugin) AppliesTo() (velero.ResourceSelector, error) {
 // Execute allows the ItemAction to perform arbitrary logic with the item being backed up,
 // in this case, setting a custom annotation on the item being backed up.
 func (p *BackupPlugin) Execute(item runtime.Unstructured, backup *v1.Backup) (runtime.Unstructured, []velero.ResourceIdentifier, error) {
-	p.log.Info("Hello from my BackupPlugin(v1)!")
 
 
 	deployment := appsv1API.Deployment{}
@@ -66,7 +65,7 @@ func (p *BackupPlugin) Execute(item runtime.Unstructured, backup *v1.Backup) (ru
 
 
 	annotations := deployment.GetAnnotations()
-	p.log.Infof("[peter] deployment annotations: %s", annotations)
+	//p.log.Infof("[peter] deployment annotations: %s", annotations)
 
 	if annotations == nil {
 		annotations = make(map[string]string)
@@ -76,9 +75,11 @@ func (p *BackupPlugin) Execute(item runtime.Unstructured, backup *v1.Backup) (ru
 	if t, found := annotations["dce.daocloud.io/parcel.net.type"]; found {
 		if t == "ovs" {
 			if parcelValue, found := annotations["dce.daocloud.io/parcel.net.value"]; found {
-				p.log.Infof("[peter] parcel: %s", parcelValue)
+				//p.log.Infof("[peter] parcel: %s", parcelValue)
 				kv := strings.Split(parcelValue, ":")
-				if len(kv) == 2{
+				// it could be `pool:xx`, or `rule:xx:yy`
+				if len(kv) >= 2{
+					// hardcode as example
 					annotations["v1.multus-cni.io/default-network"] = "kube-system/macvlan-standalone"
 					annotations["ipam.spidernet.io/ippools"] = "[{\"interface\":\"eth0\", \"ipv4\":[\"" + kv[1]  + "\"]}]"
 				}
@@ -86,10 +87,8 @@ func (p *BackupPlugin) Execute(item runtime.Unstructured, backup *v1.Backup) (ru
 		}
 	}
 
-
-	//metadata.SetAnnotations(annotations)
 	deployment.SetAnnotations(annotations)
-	p.log.Infof("[peter] after SetAnnotations = : %s", deployment.GetAnnotations())
+	//p.log.Infof("[peter] after SetAnnotations = : %s", deployment.GetAnnotations())
 
 
 	var out map[string]interface{}
